@@ -15,9 +15,6 @@ fn main() -> Result<(), ffmpeg::Error> {
 
     let chars = ['-', '*', '#', '&', '@'];
 
-    let terminal_size = terminal::size().unwrap();
-    print!("{:?}", terminal_size);
-
     if let Ok(mut ictx) = input("data/video.mp4") {
         let mut stdout = io::stdout();
 
@@ -49,8 +46,9 @@ fn main() -> Result<(), ffmpeg::Error> {
                     let mut rgb_frame = Video::empty();
                     scaler.run(&decoded, &mut rgb_frame)?;
 
-                    // println!("{:?} {:?}",downsampled_image.iter().max(),downsampled_image.iter().max());
                     // save_file(downsampled_image,terminal_size.0 as u32,terminal_size.1 as u32,frame_index).unwrap();
+
+                    let terminal_size = terminal::size().unwrap();
 
                     let downsampled_image = area_downsample(
                         rgb_frame.data(0),
