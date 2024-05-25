@@ -1,9 +1,16 @@
+//terminal
 use crossterm::cursor;
 use crossterm::{style::Print, terminal, QueueableCommand};
+
 use std::io::{self, Write};
 use std::time::{Duration, Instant};
 use std::thread;
+
+//audio
 use rodio::Sink;
+
+
+//video
 extern crate ffmpeg_next as ffmpeg;
 
 use ffmpeg::format::{input, Pixel};
@@ -29,14 +36,11 @@ fn main() -> Result<(), ffmpeg::Error> {
         let mut decoder = context_decoder.decoder().video()?;
 
         let frame_rate = input.avg_frame_rate();
-
         let frame_duration = Duration::from_secs_f64(frame_rate.invert().into());
-        
-
         let base_time = Instant::now();
 
-        println!("{:?}",frame_duration);
-
+        //:TODO
+        //downscale frame in ffmpeg itself
         let mut scaler = Context::get(
             decoder.format(),
             decoder.width(),
@@ -48,20 +52,6 @@ fn main() -> Result<(), ffmpeg::Error> {
         )?;
 
         let mut frame_index = 0;
-
-        thread::spawn(|| {
-            // Create a new sink
-            let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
-            let sink = Sink::try_new(&stream_handle).unwrap();
-    
-            // Load your audio file (replace "your_audio_file.wav" with the actual file path)
-            let file = std::fs::File::open("data/audio.mp3").unwrap();
-            let source = rodio::Decoder::new(std::io::BufReader::new(file)).unwrap();
-    
-            // Play the audio
-            sink.append(source);
-            sink.sleep_until_end();
-        });
 
         let mut receive_and_process_decoded_frames =
             |decoder: &mut ffmpeg::decoder::Video| -> Result<(), ffmpeg::Error> {
@@ -110,6 +100,9 @@ fn main() -> Result<(), ffmpeg::Error> {
                 }
                 Ok(())
             };
+
+
+        spawn_and_play_audio("data/audio.mp3".to_string());
 
         for (stream, packet) in ictx.packets() {
             if stream.index() == video_stream_index {
@@ -183,4 +176,21 @@ fn area_downsample(
     }
 
     output_img
+}
+
+
+fn spawn_and_play_audio(path:String){
+    thread::spawn(|| {
+        // Create a new sink
+        let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
+        let sink = Sink::try_new(&stream_handle).unwrap();
+
+        // Load  audio file 
+        let file = std::fs::File::open(path).unwrap();
+        let source = rodio::Decoder::new(std::io::BufReader::new(file)).unwrap();
+
+        // Play the audio
+        sink.append(source);
+        sink.sleep_until_end();
+    });
 }
