@@ -3,6 +3,7 @@ use crossterm::{style::Print, terminal, QueueableCommand};
 use std::io::{self, Write};
 use std::time::{Duration, Instant};
 use std::thread;
+use rodio::Sink;
 extern crate ffmpeg_next as ffmpeg;
 
 use ffmpeg::format::{input, Pixel};
@@ -47,6 +48,20 @@ fn main() -> Result<(), ffmpeg::Error> {
         )?;
 
         let mut frame_index = 0;
+
+        thread::spawn(|| {
+            // Create a new sink
+            let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
+            let sink = Sink::try_new(&stream_handle).unwrap();
+    
+            // Load your audio file (replace "your_audio_file.wav" with the actual file path)
+            let file = std::fs::File::open("data/audio.mp3").unwrap();
+            let source = rodio::Decoder::new(std::io::BufReader::new(file)).unwrap();
+    
+            // Play the audio
+            sink.append(source);
+            sink.sleep_until_end();
+        });
 
         let mut receive_and_process_decoded_frames =
             |decoder: &mut ffmpeg::decoder::Video| -> Result<(), ffmpeg::Error> {
