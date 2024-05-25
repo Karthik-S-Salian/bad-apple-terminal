@@ -9,7 +9,6 @@ use std::thread;
 //audio
 use rodio::Sink;
 
-
 //video
 extern crate ffmpeg_next as ffmpeg;
 
@@ -39,28 +38,20 @@ fn main() -> Result<(), ffmpeg::Error> {
         let frame_duration = Duration::from_secs_f64(frame_rate.invert().into());
         let base_time = Instant::now();
 
-        //:TODO
-        //downscale frame in ffmpeg itself
-        // let mut scaler = Context::get(
-        //     decoder.format(),
-        //     decoder.width(),
-        //     decoder.height(),
-        //     Pixel::YA8,
-        //     decoder.width(),
-        //     decoder.height(),
-        //     Flags::AREA,
-        // )?;
 
+        let mut terminal_size = get_terminal_size();
+        let mut prvs_terminal_size:(u32,u32) = (0,0);
+        let mut chars_vec:Vec<char> = Vec::new();
 
-        // let mut scaler = Context::get(
-        //     decoder.format(),
-        //     decoder.width(),
-        //     decoder.height(),
-        //     Pixel::GRAY8,
-        //     decoder.width(),
-        //     decoder.height(),
-        //     Flags::AREA,
-        // )?;
+        let mut scaler = Context::get(
+            decoder.format(),
+            decoder.width(),
+            decoder.height(),
+            Pixel::GRAY8,
+            terminal_size.0,
+            terminal_size.1,
+            Flags::AREA,
+        )?;
 
         let mut frame_index = 0;
 
@@ -71,37 +62,27 @@ fn main() -> Result<(), ffmpeg::Error> {
                     let mut frame = Video::empty();
 
 
-                    let terminal_size = get_terminal_size();
+                    terminal_size = get_terminal_size();
 
-                    let mut scaler = Context::get(
-                        decoder.format(),
-                        decoder.width(),
-                        decoder.height(),
-                        Pixel::GRAY8,
-                        terminal_size.0,
-                        terminal_size.1,
-                        Flags::AREA,
-                    )?;
+                    if terminal_size!=prvs_terminal_size{
+                        scaler = Context::get(
+                            decoder.format(),
+                            decoder.width(),
+                            decoder.height(),
+                            Pixel::GRAY8,
+                            terminal_size.0,
+                            terminal_size.1,
+                            Flags::AREA,
+                        )?;
+
+                        prvs_terminal_size = terminal_size;
+
+                        chars_vec = Vec::with_capacity((terminal_size.0*terminal_size.1) as usize);
+                    }
 
                     scaler.run(&decoded, &mut frame)?;
 
-                    // println!("{:?} {:?}  {} {:?}",terminal_size.0*terminal_size.1*2,terminal_size,frame.data(0).len(),frame.stride(0));
-            
-            
-                    // let mut scaler = Context::get(
-                    //     decoder.format(),
-                    //     decoder.width(),
-                    //     decoder.height(),
-                    //     Pixel::GRAY8,
-                    //     decoder.width(),
-                    //     decoder.height(),
-                    //     Flags::AREA,
-                    // )?;
-
-                    let mut chars_vec:Vec<char>= Vec::with_capacity((terminal_size.0*terminal_size.1) as usize);
-
                     let frame_data = frame.data(0);
-
 
                     for i in 0..terminal_size.1{
                         for j in 0..terminal_size.0{
@@ -110,26 +91,6 @@ fn main() -> Result<(), ffmpeg::Error> {
                             chars_vec.push(c);
                         }
                     }
-
-
-
-                    
-
-                    // save_file(downsampled_image,terminal_size.0 as u32,terminal_size.1 as u32,frame_index).unwrap();
-
-
-                    // let downsampled_image = area_downsample(
-                    //     frame.data(0),
-                    //     frame.width(),
-                    //     frame.height(),
-                    //     terminal_size.0 as u32,
-                    //     terminal_size.1 as u32,
-                    // );
-
-                    // let chars_vec: String = downsampled_image
-                    //     .iter()
-                    //     .map(|&value| chars[value as usize / (260 / (chars.len()))])
-                    //     .collect();
 
                     stdout
                         .queue(terminal::Clear(terminal::ClearType::All))
@@ -141,6 +102,8 @@ fn main() -> Result<(), ffmpeg::Error> {
                         .flush()
                         .unwrap();
 
+                    chars_vec.clear();
+
                     frame_index += 1;
 
                     let expected_duration = frame_duration*frame_index;
@@ -149,8 +112,7 @@ fn main() -> Result<(), ffmpeg::Error> {
                             thread::sleep(diff);
                         },
                         None=>{}
-                    }
-                    
+                    } 
                 }
                 Ok(())
             };
