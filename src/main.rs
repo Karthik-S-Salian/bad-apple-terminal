@@ -134,17 +134,6 @@ fn main() -> Result<(), ffmpeg::Error> {
     Ok(())
 }
 
-// fn save_file(frame: Vec<u8>, width:u32,height:u32,index: usize) -> std::result::Result<(), std::io::Error> {
-//   use std::fs::File;
-// use std::io::prelude::*;
-//     let mut file = File::create(format!("frame{}.ppm", index))?;
-//     file.write_all(format!("P5\n{} {}\n128\n", width, height).as_bytes())?;
-//     let byte_slice: &[u8] = &frame;
-//     file.write_all(byte_slice)?;
-//     Ok(())
-// }
-
-
 fn spawn_and_play_audio(path:String){
     thread::spawn(|| {
         // Create a new sink
