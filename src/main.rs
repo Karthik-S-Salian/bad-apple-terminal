@@ -1,6 +1,7 @@
 //terminal
 use crossterm::cursor;
 use crossterm::{style::Print, terminal, QueueableCommand};
+use ffmpeg::format::context::Input;
 
 use std::io::{self, Write};
 use std::time::{Duration, Instant};
@@ -154,3 +155,24 @@ fn get_terminal_size() -> (u32, u32) {
     let (width, height) = terminal::size().unwrap();
     (width as u32, height as u32)
 }
+
+
+// fn play_audio(ictx:Input)->Result<(),ffmpeg::Error>{
+//     let input = ictx
+//         .streams()
+//         .best(Type::Audio)
+//         .expect("could not find best audio stream");
+//     let context = ffmpeg::codec::context::Context::from_parameters(input.parameters())?;
+//     let mut decoder = context.decoder().audio()?;
+
+//     decoder.set_parameters(input.parameters())?;
+
+//     let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
+//     let sink = Sink::try_new(&stream_handle).unwrap();
+
+//     sink.append(decoder);
+//     sink.play();
+//     sink.sleep_until_end();
+
+//     Ok(())
+// }
