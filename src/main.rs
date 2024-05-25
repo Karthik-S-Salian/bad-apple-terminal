@@ -1,8 +1,8 @@
 use crossterm::cursor;
 use crossterm::{style::Print, terminal, QueueableCommand};
 use std::io::{self, Write};
-
-use std::{thread, time};
+use std::time::{Duration, Instant};
+use std::thread;
 extern crate ffmpeg_next as ffmpeg;
 
 use ffmpeg::format::{input, Pixel};
@@ -27,6 +27,15 @@ fn main() -> Result<(), ffmpeg::Error> {
         let context_decoder = ffmpeg::codec::context::Context::from_parameters(input.parameters())?;
         let mut decoder = context_decoder.decoder().video()?;
 
+        let frame_rate = input.avg_frame_rate();
+
+        let frame_duration = Duration::from_secs_f64(frame_rate.invert().into());
+        
+
+        let base_time = Instant::now();
+
+        println!("{:?}",frame_duration);
+
         let mut scaler = Context::get(
             decoder.format(),
             decoder.width(),
@@ -43,17 +52,17 @@ fn main() -> Result<(), ffmpeg::Error> {
             |decoder: &mut ffmpeg::decoder::Video| -> Result<(), ffmpeg::Error> {
                 let mut decoded = Video::empty();
                 while decoder.receive_frame(&mut decoded).is_ok() {
-                    let mut rgb_frame = Video::empty();
-                    scaler.run(&decoded, &mut rgb_frame)?;
+                    let mut frame = Video::empty();
+                    scaler.run(&decoded, &mut frame)?;
 
                     // save_file(downsampled_image,terminal_size.0 as u32,terminal_size.1 as u32,frame_index).unwrap();
 
                     let terminal_size = terminal::size().unwrap();
 
                     let downsampled_image = area_downsample(
-                        rgb_frame.data(0),
-                        rgb_frame.width(),
-                        rgb_frame.height(),
+                        frame.data(0),
+                        frame.width(),
+                        frame.height(),
                         terminal_size.0 as u32,
                         terminal_size.1 as u32,
                     );
@@ -75,9 +84,14 @@ fn main() -> Result<(), ffmpeg::Error> {
 
                     frame_index += 1;
 
-                    let ten_millis = time::Duration::from_millis(20);
-
-                    thread::sleep(ten_millis);
+                    let expected_duration = frame_duration*frame_index;
+                    match expected_duration.checked_sub(base_time.elapsed()) {
+                        Some(diff)=>{
+                            thread::sleep(diff);
+                        },
+                        None=>{}
+                    }
+                    
                 }
                 Ok(())
             };
@@ -87,6 +101,7 @@ fn main() -> Result<(), ffmpeg::Error> {
                 decoder.send_packet(&packet)?;
                 receive_and_process_decoded_frames(&mut decoder)?;
             }
+            // break;
         }
         decoder.send_eof()?;
         receive_and_process_decoded_frames(&mut decoder)?;
