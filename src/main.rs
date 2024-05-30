@@ -1,7 +1,6 @@
 //terminal
 use crossterm::cursor;
 use crossterm::{style::Print, terminal, QueueableCommand};
-use ffmpeg::format::context::Input;
 
 use std::io::{self, Write};
 use std::time::{Duration, Instant};
@@ -21,7 +20,7 @@ use ffmpeg::util::frame::video::Video;
 fn main() -> Result<(), ffmpeg::Error> {
     ffmpeg::init().unwrap();
 
-    let chars = ['-', '*', '#', '&', '@'];
+    let chars = [' ','-', '*', '#', '&', '@'];
 
     if let Ok(mut ictx) = input("data/video.mp4") {
         let mut stdout = io::stdout();
@@ -156,7 +155,7 @@ fn get_terminal_size() -> (u32, u32) {
     (width as u32, height as u32)
 }
 
-
+// use ffmpeg::format::context::Input;
 // fn play_audio(ictx:Input)->Result<(),ffmpeg::Error>{
 //     let input = ictx
 //         .streams()
