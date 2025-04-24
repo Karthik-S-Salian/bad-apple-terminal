@@ -17,10 +17,18 @@ use ffmpeg::media::Type;
 use ffmpeg::software::scaling::{context::Context, flag::Flags};
 use ffmpeg::util::frame::video::Video;
 
+use std::fs::File;
+use std::env;
+use rodio;
+use std::io::Cursor;
+
 fn main() -> Result<(), ffmpeg::Error> {
     ffmpeg::init().unwrap();
 
     let chars = [' ','-', '*', '#', '&', '@'];
+
+    let video_bytes: &[u8] = include_bytes!("../data/video.mp4");
+ 	let video_file_path = save_to_temp_file(video_bytes, "video.mp4");
 
     if let Ok(mut ictx) = input("data/video.mp4") {
         let mut stdout = io::stdout();
@@ -105,20 +113,15 @@ fn main() -> Result<(), ffmpeg::Error> {
                     chars_vec.clear();
 
                     frame_index += 1;
-
-                    let expected_duration = frame_duration*frame_index;
-                    match expected_duration.checked_sub(base_time.elapsed()) {
-                        Some(diff)=>{
-                            thread::sleep(diff);
-                        },
-                        None=>{}
-                    } 
+                    if let Some(diff) = expected_duration.checked_sub(base_time.elapsed()) {
+                        thread::sleep(diff);
+                    }
                 }
                 Ok(())
             };
 
 
-        spawn_and_play_audio("data/audio.mp3".to_string());
+        spawn_and_play_audio();
 
         for (stream, packet) in ictx.packets() {
             if stream.index() == video_stream_index {
@@ -137,15 +140,18 @@ fn main() -> Result<(), ffmpeg::Error> {
 fn spawn_and_play_audio(path:String){
     thread::spawn(|| {
         // Create a new sink
+        // Include the audio file as bytes
+        let audio_data = include_bytes!("data/audio.mp3");
+
+        // Get the default audio output stream
         let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
-        let sink = Sink::try_new(&stream_handle).unwrap();
-
-        // Load  audio file 
-        let file = std::fs::File::open(path).unwrap();
-        let source = rodio::Decoder::new(std::io::BufReader::new(file)).unwrap();
-
+    
+        // Create a decoder from the in-memory byte buffer
+        let cursor = Cursor::new(audio_data);
+        let source = rodio::Decoder::new(cursor).unwrap();
+    
         // Play the audio
-        sink.append(source);
+        let sink = stream_handle.play_raw(source.convert_samples());
         sink.sleep_until_end();
     });
 }
@@ -175,3 +181,10 @@ fn get_terminal_size() -> (u32, u32) {
 
 //     Ok(())
 // }
+
+fn save_to_temp_file(data: &[u8], filename: &str) -> String {
+    let temp_dir = env::temp_dir();
+    let file_path = temp_dir.join(filename);
+    std::fs::write(&file_path, data).expect("Failed to write to temp file");
+    file_path.to_str().unwrap().to_string()
+}
