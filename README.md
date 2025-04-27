@@ -19,6 +19,6 @@ https://github.com/zmwangx/rust-ffmpeg/blob/master/examples/dump-frames.rs
 ## Progress
 - [x] minimal working project
 - [x] use ffmpeg for downscaling image instead of manual code
-- [ ] compile with video and audio to single binary
+- [x] compile with video and audio to single binary
 - [ ] try using ffmepg to extract audio instead of external audio file
 
