@@ -1,18 +1,17 @@
-//terminal
+// terminal
 use crossterm::cursor;
 use crossterm::{style::Print, terminal, QueueableCommand};
 
+use rodio::Sink;
 use std::env;
 use std::io::{self, Write};
 use std::thread;
 use std::time::{Duration, Instant};
 
-//audio
-use rodio::Sink;
+use ffmpeg::software::resampling::Context as Resampler;
 
-//video
+// video
 extern crate ffmpeg_next as ffmpeg;
-
 use ffmpeg::format::{input, Pixel};
 use ffmpeg::media::Type;
 use ffmpeg::software::scaling::{context::Context, flag::Flags};
@@ -23,23 +22,27 @@ fn main() -> Result<(), ffmpeg::Error> {
 
     let chars = [' ', '-', '*', '#', '&', '@'];
 
-    // Include video.mp4 as a byte array
+    // Include video.mp4 as bytes
     let video_bytes: &[u8] = include_bytes!("../data/video.mp4");
     let video_file_path = save_to_temp_file(video_bytes, "video.mp4");
 
     if let Ok(mut ictx) = input(&video_file_path) {
         let mut stdout = io::stdout();
 
-        let input = ictx
+        let input_video = ictx
             .streams()
             .best(Type::Video)
             .ok_or(ffmpeg::Error::StreamNotFound)?;
-        let video_stream_index = input.index();
 
-        let context_decoder = ffmpeg::codec::context::Context::from_parameters(input.parameters())?;
+        let video_stream_index = input_video.index();
+
+        decode_and_play_audio(video_file_path);
+
+        let context_decoder =
+            ffmpeg::codec::context::Context::from_parameters(input_video.parameters())?;
         let mut decoder = context_decoder.decoder().video()?;
 
-        let frame_rate = input.avg_frame_rate();
+        let frame_rate = input_video.avg_frame_rate();
         let frame_duration = Duration::from_secs_f64(frame_rate.invert().into());
         let base_time = Instant::now();
 
@@ -121,18 +124,11 @@ fn main() -> Result<(), ffmpeg::Error> {
                 Ok(())
             };
 
-        // Include audio.mp3 as a byte array
-        let audio_bytes: &[u8] = include_bytes!("../data/audio.mp3");
-        let audio_file_path = save_to_temp_file(audio_bytes, "audio.mp3");
-
-        spawn_and_play_audio(audio_file_path);
-
         for (stream, packet) in ictx.packets() {
             if stream.index() == video_stream_index {
                 decoder.send_packet(&packet)?;
                 receive_and_process_decoded_frames(&mut decoder)?;
             }
-            // break;
         }
         decoder.send_eof()?;
         receive_and_process_decoded_frames(&mut decoder)?;
@@ -141,18 +137,80 @@ fn main() -> Result<(), ffmpeg::Error> {
     Ok(())
 }
 
-fn spawn_and_play_audio(path: String) {
-    thread::spawn(|| {
-        // Create a new sink
+fn decode_and_play_audio(video_file_path: String) {
+    thread::spawn(move || {
+        ffmpeg::init().unwrap();
+
+        let mut ictx = ffmpeg::format::input(&video_file_path).unwrap();
+
+        let input = ictx
+            .streams()
+            .best(ffmpeg::media::Type::Audio)
+            .expect("Audio stream not found");
+
+        let audio_stream_index = input.index();
+
+        let context_decoder =
+            ffmpeg::codec::context::Context::from_parameters(input.parameters()).unwrap();
+        let mut decoder = context_decoder.decoder().audio().unwrap();
+
+        // RESAMPLER: always resample to packed i16 (even if not needed)
+        let mut resampler = Resampler::get(
+            decoder.format(),                                                  // source format
+            decoder.channel_layout(),                                          // source layout
+            decoder.rate(),                                                    // source rate
+            ffmpeg::format::Sample::I16(ffmpeg::format::sample::Type::Packed), // target format
+            decoder.channel_layout(),                                          // target layout
+            decoder.rate(),                                                    // target rate
+        )
+        .unwrap();
+
         let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
         let sink = Sink::try_new(&stream_handle).unwrap();
 
-        // Load  audio file
-        let file = std::fs::File::open(path).unwrap();
-        let source = rodio::Decoder::new(std::io::BufReader::new(file)).unwrap();
+        let mut decoded = ffmpeg::frame::Audio::empty();
+        let mut resampled = ffmpeg::frame::Audio::empty();
 
-        // Play the audio
-        sink.append(source);
+        for (stream, packet) in ictx.packets() {
+            if stream.index() == audio_stream_index {
+                if decoder.send_packet(&packet).is_ok() {
+                    while decoder.receive_frame(&mut decoded).is_ok() {
+                        // Resample the decoded frame
+                        resampler.run(&decoded, &mut resampled).unwrap();
+
+                        // Now resampled is packed i16
+                        let samples: Vec<i16> = resampled
+                            .data(0)
+                            .chunks_exact(2)
+                            .map(|b| i16::from_ne_bytes([b[0], b[1]]))
+                            .collect();
+
+                        let sample_rate = resampled.rate() as u32;
+                        let channels = resampled.channels() as u16;
+
+                        let source =
+                            rodio::buffer::SamplesBuffer::new(channels, sample_rate, samples);
+                        sink.append(source);
+                    }
+                }
+            }
+        }
+
+        // Flush decoder
+        decoder.send_eof().ok();
+        while decoder.receive_frame(&mut decoded).is_ok() {
+            resampler.run(&decoded, &mut resampled).unwrap();
+            let samples: Vec<i16> = resampled
+                .data(0)
+                .chunks_exact(2)
+                .map(|b| i16::from_ne_bytes([b[0], b[1]]))
+                .collect();
+            let sample_rate = resampled.rate() as u32;
+            let channels = resampled.channels() as u16;
+            let source = rodio::buffer::SamplesBuffer::new(channels, sample_rate, samples);
+            sink.append(source);
+        }
+
         sink.sleep_until_end();
     });
 }
@@ -168,24 +226,3 @@ fn save_to_temp_file(data: &[u8], filename: &str) -> String {
     std::fs::write(&file_path, data).expect("Failed to write to temp file");
     file_path.to_str().unwrap().to_string()
 }
-
-// use ffmpeg::format::context::Input;
-// fn play_audio(ictx:Input)->Result<(),ffmpeg::Error>{
-//     let input = ictx
-//         .streams()
-//         .best(Type::Audio)
-//         .expect("could not find best audio stream");
-//     let context = ffmpeg::codec::context::Context::from_parameters(input.parameters())?;
-//     let mut decoder = context.decoder().audio()?;
-
-//     decoder.set_parameters(input.parameters())?;
-
-//     let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
-//     let sink = Sink::try_new(&stream_handle).unwrap();
-
-//     sink.append(decoder);
-//     sink.play();
-//     sink.sleep_until_end();
-
-//     Ok(())
-// }
