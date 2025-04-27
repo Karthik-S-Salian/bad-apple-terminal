@@ -6,7 +6,7 @@ bad apple video is rendered on terminal by converting each frame to ascii art
 | name     | usage       |
 | ---------| ----------- |
 |FFMPEG   :| frame extraction |
-|crossterm:| rndering ascii frame in terminal|
+|crossterm:| rendering ascii frame in terminal|
 |rodio    :| play audio|
 
 [![wtach on youtube](https://img.youtube.com/vi/lTfW0bnWgkI/0.jpg)](https://www.youtube.com/watch?v=lTfW0bnWgkI)
@@ -21,5 +21,6 @@ https://github.com/zmwangx/rust-ffmpeg/blob/master/examples/dump-frames.rs
 - [x] use ffmpeg for downscaling image instead of manual code
 - [x] compile with video and audio to single binary
 - [x] try using ffmepg to extract audio instead of external audio file
-- [x] audio and video synchronisation (no need looks clean on my machine)
+- [ ] bug😭😭 audio wont play for first 2 sec [started after using ffmpeg to extract audio]
+- [ ] audio and video synchronisation (no need looks clean on my machine😁)
 
