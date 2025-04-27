@@ -154,14 +154,15 @@ fn decode_and_play_audio(video_file_path: String) {
             ffmpeg::codec::context::Context::from_parameters(input.parameters()).unwrap();
         let mut decoder = context_decoder.decoder().audio().unwrap();
 
-        // RESAMPLER: always resample to packed i16 (even if not needed)
+        // RESAMPLER: always resample to packed i16 (even if not needed) (bcs rodio excepts in that format)
+        // for bad apple its in f32
         let mut resampler = Resampler::get(
-            decoder.format(),                                                  // source format
-            decoder.channel_layout(),                                          // source layout
-            decoder.rate(),                                                    // source rate
-            ffmpeg::format::Sample::I16(ffmpeg::format::sample::Type::Packed), // target format
-            decoder.channel_layout(),                                          // target layout
-            decoder.rate(),                                                    // target rate
+            decoder.format(),
+            decoder.channel_layout(),
+            decoder.rate(),
+            ffmpeg::format::Sample::I16(ffmpeg::format::sample::Type::Packed),
+            decoder.channel_layout(),
+            decoder.rate(),
         )
         .unwrap();
 
@@ -175,10 +176,10 @@ fn decode_and_play_audio(video_file_path: String) {
             if stream.index() == audio_stream_index {
                 if decoder.send_packet(&packet).is_ok() {
                     while decoder.receive_frame(&mut decoded).is_ok() {
+
                         // Resample the decoded frame
                         resampler.run(&decoded, &mut resampled).unwrap();
 
-                        // Now resampled is packed i16
                         let samples: Vec<i16> = resampled
                             .data(0)
                             .chunks_exact(2)
