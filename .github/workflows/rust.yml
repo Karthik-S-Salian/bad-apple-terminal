@@ -27,9 +27,9 @@ jobs:
           libavdevice-dev \
           libavfilter-dev \
           libswscale-dev \
-          libavresample-dev \
           libasound2-dev \
           pkg-config
+
 
     - name: Build release binary
       run: cargo build --release
