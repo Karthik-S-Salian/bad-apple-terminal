@@ -37,7 +37,7 @@ jobs:
     - name: Package binary
       run: |
         mkdir -p dist
-        cp target/release/bad-apple
+        cp target/release/bad-apple dist/
 
     - name: Bad Apple Terminal
       uses: softprops/action-gh-release@v2
